@@ -1,0 +1,6 @@
+{
+  "name": "ALL GENRES MILLIONS READER",
+  "description": "Millions of Stories. Every Genre. One Reading Community. An international literary community connecting readers and authors across every genre.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

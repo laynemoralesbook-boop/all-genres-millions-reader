@@ -1,0 +1,218 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered reader account profile and reading preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "country": { "type": "string", "maxLength": 100 },
+        "favoriteGenres": { "type": "array", "description": "Up to 12 selected literary genres" },
+        "readingInterests": { "type": "string", "maxLength": 1000 },
+        "readingGoalBooks": { "type": "integer" },
+        "booksReadCount": { "type": "integer" },
+        "challengeJoined": { "type": "boolean" },
+        "challengeNotes": { "type": "string", "maxLength": 2000 },
+        "savedBookIds": { "type": "array", "description": "Up to 50 saved book IDs" },
+        "role": { "type": "string", "enum": ["reader", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "email", "country", "favoriteGenres", "role", "createdAt", "updatedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized platform administrator registry.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "grantedAt"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Admin-approved featured book listing in the community library.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "genre": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "publicationInfo": { "type": "string", "maxLength": 300 },
+        "purchaseLink": { "type": "string", "maxLength": 500 },
+        "coverUrl": { "type": "string", "maxLength": 350000 },
+        "status": { "type": "string", "enum": ["pending", "approved", "archived"] },
+        "featuredInChallenge": { "type": "boolean" },
+        "packageTier": { "type": "string", "enum": ["basic", "standard", "premium", "editorial"] },
+        "promoStartDate": { "type": "string", "maxLength": 40 },
+        "promoEndDate": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "authorName", "genre", "description", "status", "featuredInChallenge", "packageTier", "createdAt", "updatedAt"]
+    },
+    "AuthorProfile": {
+      "title": "AuthorProfile",
+      "description": "Admin-approved featured author profile.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "genre": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "biography": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "photoUrl": { "type": "string", "maxLength": 350000 },
+        "website": { "type": "string", "maxLength": 300 },
+        "socialLinks": { "type": "string", "maxLength": 1000 },
+        "purchaseLinks": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["pending", "approved", "archived"] },
+        "spotlightTier": { "type": "string", "enum": ["standard", "premium", "editorial"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "genre", "biography", "status", "spotlightTier", "createdAt", "updatedAt"]
+    },
+    "AuthorSubmission": {
+      "title": "AuthorSubmission",
+      "description": "Submitted book promotional application awaiting review and payment verification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "referenceCode": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "authorFullName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "country": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "bookTitle": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "bookGenre": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "bookSynopsis": { "type": "string", "minLength": 10, "maxLength": 5000 },
+        "purchaseLink": { "type": "string", "maxLength": 500 },
+        "coverUrl": { "type": "string", "maxLength": 350000 },
+        "authorBiography": { "type": "string", "minLength": 10, "maxLength": 4000 },
+        "authorWebsite": { "type": "string", "maxLength": 300 },
+        "socialMediaLinks": { "type": "string", "maxLength": 1000 },
+        "selectedPackage": { "type": "string", "enum": ["basic", "standard", "premium"] },
+        "packageAmountUsd": { "type": "integer" },
+        "additionalInfo": { "type": "string", "maxLength": 2000 },
+        "agreedToTerms": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending_review", "under_review", "approved", "rejected"] },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "pending_verification", "verified", "refunded"] },
+        "adminNotes": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "referenceCode", "authorFullName", "email", "country", "bookTitle", "bookGenre", "bookSynopsis", "authorBiography", "selectedPackage", "packageAmountUsd", "agreedToTerms", "status", "paymentStatus", "createdAt", "updatedAt"]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "One-time promotional package payment record and verification state.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "submissionId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "referenceCode": { "type": "string", "minLength": 4, "maxLength": 120 },
+        "provider": { "type": "string", "enum": ["paystack", "stripe"] },
+        "packageTier": { "type": "string", "enum": ["basic", "standard", "premium"] },
+        "amountUsd": { "type": "integer" },
+        "status": { "type": "string", "enum": ["pending", "verified", "failed", "refunded"] },
+        "providerTransactionId": { "type": "string", "maxLength": 160 },
+        "verificationDigest": { "type": "string", "maxLength": 200 },
+        "promoStartDate": { "type": "string", "maxLength": 40 },
+        "promoEndDate": { "type": "string", "maxLength": 40 },
+        "adminNotes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "submissionId", "referenceCode", "provider", "packageTier", "amountUsd", "status", "createdAt", "updatedAt"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Visitor inquiry submitted via the Contact Us page.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 180 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "message": { "type": "string", "minLength": 5, "maxLength": 4000 },
+        "status": { "type": "string", "enum": ["new", "read", "replied"] },
+        "adminNotes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "subject", "message", "status", "createdAt"]
+    },
+    "ReadingProgress": {
+      "title": "ReadingProgress",
+      "description": "Reader-specific progress and reflections on community books.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "bookId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "bookTitle": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "status": { "type": "string", "enum": ["want_to_read", "reading", "completed"] },
+        "progressPercent": { "type": "integer" },
+        "reflection": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "bookId", "bookTitle", "status", "progressPercent", "createdAt", "updatedAt"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Administrator-editable homepage copy, reading challenge details, package pricing, and announcements.",
+      "type": "object",
+      "properties": {
+        "heroHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "heroSupportingText": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "challengeTitle": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "challengeIntro": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "challengeGuidelines": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "communityAnnouncement": { "type": "string", "maxLength": 1500 },
+        "basicPriceUsd": { "type": "integer" },
+        "standardPriceUsd": { "type": "integer" },
+        "premiumPriceUsd": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["heroHeadline", "heroSupportingText", "challengeTitle", "challengeIntro", "challengeGuidelines", "basicPriceUsd", "standardPriceUsd", "premiumPriceUsd", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private reader profile documents keyed by Firebase Auth UID."
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Authorized administrators registry."
+    },
+    "/books/{bookId}": {
+      "schema": { "$ref": "#/entities/Book" },
+      "description": "Curated book listings (public read restricted to approved status)."
+    },
+    "/authors/{authorId}": {
+      "schema": { "$ref": "#/entities/AuthorProfile" },
+      "description": "Curated author profiles (public read restricted to approved status)."
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/AuthorSubmission" },
+      "description": "Author promotional package submissions."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentRecord" },
+      "description": "One-time payment records for promotional packages."
+    },
+    "/contact_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ContactMessage" },
+      "description": "Contact Us inquiries viewable only by administrators."
+    },
+    "/reading_progress/{progressId}": {
+      "schema": { "$ref": "#/entities/ReadingProgress" },
+      "description": "Reader reading progress and reflections."
+    },
+    "/site_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Publicly readable, admin-editable website content and challenge settings."
+    }
+  }
+}

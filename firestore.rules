@@ -1,0 +1,451 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all reads and writes by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Helpers
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'laynemorales.book@gmail.com' ||
+        request.auth.token.email == 'joseph.g@aurorametros.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid', 'fullName', 'email', 'country', 'favoriteGenres',
+        'readingInterests', 'readingGoalBooks', 'booksReadCount',
+        'challengeJoined', 'challengeNotes', 'savedBookIds', 'role',
+        'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'uid', 'fullName', 'email', 'country', 'favoriteGenres',
+        'readingInterests', 'readingGoalBooks', 'booksReadCount',
+        'challengeJoined', 'challengeNotes', 'savedBookIds', 'role',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == userId && isValidId(data.uid) &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 180 &&
+      data.country is string && data.country.size() <= 100 &&
+      data.favoriteGenres is list && data.favoriteGenres.size() <= 12 &&
+      (data.favoriteGenres.size() == 0 || data.favoriteGenres[0] is string) &&
+      data.readingInterests is string && data.readingInterests.size() <= 1000 &&
+      data.readingGoalBooks is int && data.readingGoalBooks >= 0 && data.readingGoalBooks <= 500 &&
+      data.booksReadCount is int && data.booksReadCount >= 0 && data.booksReadCount <= 10000 &&
+      data.challengeJoined is bool &&
+      data.challengeNotes is string && data.challengeNotes.size() <= 2000 &&
+      data.savedBookIds is list && data.savedBookIds.size() <= 50 &&
+      (data.savedBookIds.size() == 0 || data.savedBookIds[0] is string) &&
+      data.role in ['reader', 'admin'] &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidAdminUser(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'grantedAt']) &&
+      data.keys().hasOnly(['uid', 'email', 'grantedAt']) &&
+      data.uid is string && data.uid == uid && isValidId(data.uid) &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 180 &&
+      data.grantedAt is timestamp;
+    }
+
+    function isValidBook(data) {
+      return data.keys().hasAll([
+        'title', 'authorName', 'authorId', 'genre', 'description',
+        'publicationInfo', 'purchaseLink', 'coverUrl', 'status',
+        'featuredInChallenge', 'packageTier', 'promoStartDate', 'promoEndDate',
+        'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'title', 'authorName', 'authorId', 'genre', 'description',
+        'publicationInfo', 'purchaseLink', 'coverUrl', 'status',
+        'featuredInChallenge', 'packageTier', 'promoStartDate', 'promoEndDate',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+      data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 140 &&
+      data.authorId is string && data.authorId.size() <= 128 &&
+      data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 80 &&
+      data.description is string && data.description.size() >= 1 && data.description.size() <= 4000 &&
+      data.publicationInfo is string && data.publicationInfo.size() <= 300 &&
+      data.purchaseLink is string && data.purchaseLink.size() <= 500 &&
+      data.coverUrl is string && data.coverUrl.size() <= 350000 &&
+      data.status in ['pending', 'approved', 'archived'] &&
+      data.featuredInChallenge is bool &&
+      data.packageTier in ['basic', 'standard', 'premium', 'editorial'] &&
+      data.promoStartDate is string && data.promoStartDate.size() <= 40 &&
+      data.promoEndDate is string && data.promoEndDate.size() <= 40 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidAuthor(data) {
+      return data.keys().hasAll([
+        'name', 'genre', 'biography', 'photoUrl', 'website',
+        'socialLinks', 'purchaseLinks', 'status', 'spotlightTier',
+        'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'name', 'genre', 'biography', 'photoUrl', 'website',
+        'socialLinks', 'purchaseLinks', 'status', 'spotlightTier',
+        'createdAt', 'updatedAt'
+      ]) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 140 &&
+      data.genre is string && data.genre.size() >= 1 && data.genre.size() <= 80 &&
+      data.biography is string && data.biography.size() >= 1 && data.biography.size() <= 4000 &&
+      data.photoUrl is string && data.photoUrl.size() <= 350000 &&
+      data.website is string && data.website.size() <= 300 &&
+      data.socialLinks is string && data.socialLinks.size() <= 1000 &&
+      data.purchaseLinks is string && data.purchaseLinks.size() <= 1000 &&
+      data.status in ['pending', 'approved', 'archived'] &&
+      data.spotlightTier in ['standard', 'premium', 'editorial'] &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll([
+        'userId', 'referenceCode', 'authorFullName', 'email', 'country',
+        'bookTitle', 'bookGenre', 'bookSynopsis', 'purchaseLink', 'coverUrl',
+        'authorBiography', 'authorWebsite', 'socialMediaLinks',
+        'selectedPackage', 'packageAmountUsd', 'additionalInfo', 'agreedToTerms',
+        'status', 'paymentStatus', 'adminNotes', 'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'userId', 'referenceCode', 'authorFullName', 'email', 'country',
+        'bookTitle', 'bookGenre', 'bookSynopsis', 'purchaseLink', 'coverUrl',
+        'authorBiography', 'authorWebsite', 'socialMediaLinks',
+        'selectedPackage', 'packageAmountUsd', 'additionalInfo', 'agreedToTerms',
+        'status', 'paymentStatus', 'adminNotes', 'createdAt', 'updatedAt'
+      ]) &&
+      data.userId is string && isValidId(data.userId) &&
+      data.referenceCode is string && data.referenceCode.size() >= 4 && data.referenceCode.size() <= 40 &&
+      data.authorFullName is string && data.authorFullName.size() >= 1 && data.authorFullName.size() <= 140 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 180 &&
+      data.country is string && data.country.size() >= 1 && data.country.size() <= 100 &&
+      data.bookTitle is string && data.bookTitle.size() >= 1 && data.bookTitle.size() <= 200 &&
+      data.bookGenre is string && data.bookGenre.size() >= 1 && data.bookGenre.size() <= 80 &&
+      data.bookSynopsis is string && data.bookSynopsis.size() >= 10 && data.bookSynopsis.size() <= 5000 &&
+      data.purchaseLink is string && data.purchaseLink.size() <= 500 &&
+      data.coverUrl is string && data.coverUrl.size() <= 350000 &&
+      data.authorBiography is string && data.authorBiography.size() >= 10 && data.authorBiography.size() <= 4000 &&
+      data.authorWebsite is string && data.authorWebsite.size() <= 300 &&
+      data.socialMediaLinks is string && data.socialMediaLinks.size() <= 1000 &&
+      data.selectedPackage in ['basic', 'standard', 'premium'] &&
+      data.packageAmountUsd is int && data.packageAmountUsd in [50, 100, 150] &&
+      data.additionalInfo is string && data.additionalInfo.size() <= 2000 &&
+      data.agreedToTerms is bool && data.agreedToTerms == true &&
+      data.status in ['pending_review', 'under_review', 'approved', 'rejected'] &&
+      data.paymentStatus in ['unpaid', 'pending_verification', 'verified', 'refunded'] &&
+      data.adminNotes is string && data.adminNotes.size() <= 2000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll([
+        'userId', 'submissionId', 'referenceCode', 'provider', 'packageTier',
+        'amountUsd', 'status', 'providerTransactionId', 'verificationDigest',
+        'promoStartDate', 'promoEndDate', 'adminNotes', 'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'userId', 'submissionId', 'referenceCode', 'provider', 'packageTier',
+        'amountUsd', 'status', 'providerTransactionId', 'verificationDigest',
+        'promoStartDate', 'promoEndDate', 'adminNotes', 'createdAt', 'updatedAt'
+      ]) &&
+      data.userId is string && isValidId(data.userId) &&
+      data.submissionId is string && isValidId(data.submissionId) &&
+      data.referenceCode is string && data.referenceCode.size() >= 4 && data.referenceCode.size() <= 120 &&
+      data.provider in ['paystack', 'stripe'] &&
+      data.packageTier in ['basic', 'standard', 'premium'] &&
+      data.amountUsd is int && data.amountUsd in [50, 100, 150] &&
+      data.status in ['pending', 'verified', 'failed', 'refunded'] &&
+      data.providerTransactionId is string && data.providerTransactionId.size() <= 160 &&
+      data.verificationDigest is string && data.verificationDigest.size() <= 200 &&
+      data.promoStartDate is string && data.promoStartDate.size() <= 40 &&
+      data.promoEndDate is string && data.promoEndDate.size() <= 40 &&
+      data.adminNotes is string && data.adminNotes.size() <= 1000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidContactMessage(data) {
+      return data.keys().hasAll([
+        'name', 'email', 'subject', 'message', 'status', 'adminNotes', 'createdAt'
+      ]) && data.keys().hasOnly([
+        'name', 'email', 'subject', 'message', 'status', 'adminNotes', 'createdAt'
+      ]) &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 180 &&
+      data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 200 &&
+      data.message is string && data.message.size() >= 5 && data.message.size() <= 4000 &&
+      data.status in ['new', 'read', 'replied'] &&
+      data.adminNotes is string && data.adminNotes.size() <= 1000 &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidReadingProgress(data) {
+      return data.keys().hasAll([
+        'userId', 'bookId', 'bookTitle', 'status', 'progressPercent',
+        'reflection', 'createdAt', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'userId', 'bookId', 'bookTitle', 'status', 'progressPercent',
+        'reflection', 'createdAt', 'updatedAt'
+      ]) &&
+      data.userId is string && isValidId(data.userId) &&
+      data.bookId is string && data.bookId.size() >= 1 && data.bookId.size() <= 128 &&
+      data.bookTitle is string && data.bookTitle.size() >= 1 && data.bookTitle.size() <= 200 &&
+      data.status in ['want_to_read', 'reading', 'completed'] &&
+      data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+      data.reflection is string && data.reflection.size() <= 2000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidSiteSettings(data) {
+      return data.keys().hasAll([
+        'heroHeadline', 'heroSupportingText', 'challengeTitle',
+        'challengeIntro', 'challengeGuidelines', 'communityAnnouncement',
+        'basicPriceUsd', 'standardPriceUsd', 'premiumPriceUsd', 'updatedAt'
+      ]) && data.keys().hasOnly([
+        'heroHeadline', 'heroSupportingText', 'challengeTitle',
+        'challengeIntro', 'challengeGuidelines', 'communityAnnouncement',
+        'basicPriceUsd', 'standardPriceUsd', 'premiumPriceUsd', 'updatedAt'
+      ]) &&
+      data.heroHeadline is string && data.heroHeadline.size() >= 1 && data.heroHeadline.size() <= 240 &&
+      data.heroSupportingText is string && data.heroSupportingText.size() >= 1 && data.heroSupportingText.size() <= 800 &&
+      data.challengeTitle is string && data.challengeTitle.size() >= 1 && data.challengeTitle.size() <= 160 &&
+      data.challengeIntro is string && data.challengeIntro.size() >= 1 && data.challengeIntro.size() <= 3000 &&
+      data.challengeGuidelines is string && data.challengeGuidelines.size() >= 1 && data.challengeGuidelines.size() <= 3000 &&
+      data.communityAnnouncement is string && data.communityAnnouncement.size() <= 1500 &&
+      data.basicPriceUsd is int && data.basicPriceUsd >= 1 && data.basicPriceUsd <= 10000 &&
+      data.standardPriceUsd is int && data.standardPriceUsd >= 1 && data.standardPriceUsd <= 10000 &&
+      data.premiumPriceUsd is int && data.premiumPriceUsd >= 1 && data.premiumPriceUsd <= 10000 &&
+      data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().role == 'reader' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'country', 'favoriteGenres', 'readingInterests',
+              'readingGoalBooks', 'booksReadCount', 'challengeJoined',
+              'challengeNotes', 'savedBookIds', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /admins/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidId(uid) && isValidAdminUser(incoming(), uid) && incoming().grantedAt == request.time;
+      allow update: if isAdmin() && isValidId(uid) && isValidAdminUser(incoming(), uid) && incoming().uid == existing().uid;
+      allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    match /books/{bookId} {
+      allow get: if isValidId(bookId) && (resource.data.status == 'approved' || isAdmin());
+      allow list: if resource.data.status == 'approved' || isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(bookId) &&
+        isValidBook(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(bookId) &&
+        isValidBook(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(bookId);
+    }
+
+    match /authors/{authorId} {
+      allow get: if isValidId(authorId) && (resource.data.status == 'approved' || isAdmin());
+      allow list: if resource.data.status == 'approved' || isAdmin();
+      allow create: if isAdmin() &&
+        isValidId(authorId) &&
+        isValidAuthor(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(authorId) &&
+        isValidAuthor(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(authorId);
+    }
+
+    match /submissions/{submissionId} {
+      allow get: if isValidId(submissionId) && (isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedUser() &&
+        isValidId(submissionId) &&
+        isValidSubmission(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'pending_review' &&
+        incoming().paymentStatus == 'unpaid' &&
+        incoming().adminNotes == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(submissionId) &&
+        isValidSubmission(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().referenceCode == existing().referenceCode &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'pending_review' &&
+            incoming().status == existing().status &&
+            incoming().paymentStatus in ['unpaid', 'pending_verification'] &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(submissionId);
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && (isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedUser() &&
+        isValidId(paymentId) &&
+        isValidPayment(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        exists(/databases/$(database)/documents/submissions/$(incoming().submissionId)) &&
+        incoming().status == 'pending' &&
+        incoming().promoStartDate == '' &&
+        incoming().promoEndDate == '' &&
+        incoming().adminNotes == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(paymentId) &&
+        isValidPayment(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().submissionId == existing().submissionId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'pending' &&
+            incoming().status == 'pending' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['providerTransactionId', 'verificationDigest', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(paymentId);
+    }
+
+    match /contact_messages/{messageId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(messageId) &&
+        isValidContactMessage(incoming()) &&
+        incoming().status == 'new' &&
+        incoming().adminNotes == '' &&
+        incoming().createdAt == request.time;
+      allow update: if isAdmin() &&
+        isValidId(messageId) &&
+        isValidContactMessage(incoming()) &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if isAdmin() && isValidId(messageId);
+    }
+
+    match /reading_progress/{progressId} {
+      allow get: if isValidId(progressId) && (isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedUser() &&
+        isValidId(progressId) &&
+        isValidReadingProgress(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(progressId) &&
+        isValidReadingProgress(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().bookId == existing().bookId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(existing().userId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'progressPercent', 'reflection', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerifiedUser() && isValidId(progressId) && (isAdmin() || isOwner(existing().userId));
+    }
+
+    match /site_settings/{settingId} {
+      allow get: if isValidId(settingId) && (settingId == 'main' || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() &&
+        isValidId(settingId) &&
+        isValidSiteSettings(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}
